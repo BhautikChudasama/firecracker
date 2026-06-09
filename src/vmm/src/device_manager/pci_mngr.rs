@@ -262,6 +262,9 @@ pub struct PciDevicesConstructorArgs<'a> {
     pub vm_resources: &'a mut VmResources,
     pub instance_id: &'a str,
     pub event_manager: &'a mut EventManager,
+    /// drive_id → new backing-file path. Same contract as
+    /// MMIODevManagerConstructorArgs::block_path_overrides.
+    pub block_path_overrides: std::collections::HashMap<String, String>,
 }
 
 impl<'a> Debug for PciDevicesConstructorArgs<'a> {
@@ -459,7 +462,10 @@ impl<'a> Persist<'a> for PciDevices {
 
         for block_state in &state.block_devices {
             let device = Arc::new(Mutex::new(Block::restore(
-                BlockConstructorArgs { mem: mem.clone() },
+                BlockConstructorArgs {
+                    mem: mem.clone(),
+                    block_path_overrides: constructor_args.block_path_overrides.clone(),
+                },
                 &block_state.device_state,
             )?));
 

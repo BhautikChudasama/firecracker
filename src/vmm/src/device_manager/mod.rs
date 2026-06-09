@@ -704,6 +704,11 @@ pub struct DeviceRestoreArgs<'a> {
     pub vcpus_exit_evt: &'a EventFd,
     pub vm_resources: &'a mut VmResources,
     pub instance_id: &'a str,
+    /// drive_id → host path. When set, the listed block drives load
+    /// their backing file from the override instead of the path
+    /// serialized in vmstate. See
+    /// `BlockConstructorArgs::block_path_overrides`.
+    pub block_path_overrides: std::collections::HashMap<String, String>,
 }
 
 impl std::fmt::Debug for DeviceRestoreArgs<'_> {
@@ -757,6 +762,7 @@ impl<'a> Persist<'a> for DeviceManager {
             vm_resources: constructor_args.vm_resources,
             instance_id: constructor_args.instance_id,
             serial_state: state.serial_state.as_ref(),
+            block_path_overrides: constructor_args.block_path_overrides.clone(),
         };
         let mmio_devices = MMIODeviceManager::restore(mmio_ctor_args, &state.mmio_state)
             .map_err(DeviceManagerPersistError::MmioRestore)?;
@@ -771,6 +777,7 @@ impl<'a> Persist<'a> for DeviceManager {
             vm_resources: constructor_args.vm_resources,
             instance_id: constructor_args.instance_id,
             event_manager: constructor_args.event_manager,
+            block_path_overrides: constructor_args.block_path_overrides.clone(),
         };
         let pci_devices = PciDevices::restore(pci_ctor_args, &state.pci_state)
             .map_err(DeviceManagerPersistError::PciRestore)?;

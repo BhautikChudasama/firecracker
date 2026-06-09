@@ -89,8 +89,21 @@ impl Persist<'_> for VirtioBlock {
         let rate_limiter = RateLimiter::restore((), &state.rate_limiter_state)
             .map_err(VirtioBlockError::RateLimiter)?;
 
+        // Honour a load-time path override for this drive id, if the
+        // caller supplied one via `PUT /snapshot/load { block_path_overrides }`.
+        // The snapshot's serialized `disk_path` is the fallback — that's
+        // the unchanged pre-override behaviour. Useful when the
+        // snapshot was taken at path A but the live backing file on
+        // this host lives at path B (fork resume, cross-host
+        // migration, etc.).
+        let disk_path = constructor_args
+            .block_path_overrides
+            .get(&state.id)
+            .cloned()
+            .unwrap_or_else(|| state.disk_path.clone());
+
         let disk_properties = DiskProperties::new(
-            state.disk_path.clone(),
+            disk_path,
             is_read_only,
             state.file_engine_type.into(),
         )?;
@@ -215,7 +228,14 @@ mod tests {
         // Restore the block device.
         let restored_state = bitcode::deserialize(&serialized_data).unwrap();
         let restored_block =
-            VirtioBlock::restore(BlockConstructorArgs { mem: guest_mem }, &restored_state).unwrap();
+            VirtioBlock::restore(
+                BlockConstructorArgs {
+                    mem: guest_mem,
+                    block_path_overrides: Default::default(),
+                },
+                &restored_state,
+            )
+            .unwrap();
 
         // Test that virtio specific fields are the same.
         assert_eq!(restored_block.device_type(), VirtioDeviceType::Block);

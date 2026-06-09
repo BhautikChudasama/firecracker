@@ -471,6 +471,7 @@ pub fn restore_from_snapshot(
         seccomp_filters,
         vm_resources,
         params.clock_realtime,
+        params.block_path_overrides.clone(),
     )
     .map_err(RestoreFromSnapshotError::Build)
 }
