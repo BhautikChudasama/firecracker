@@ -3,6 +3,7 @@
 
 //! Provides functionality for saving/restoring the MMIO device manager and its devices.
 
+use std::collections::HashMap;
 use std::fmt::{self, Debug};
 use std::sync::{Arc, Mutex};
 
@@ -159,6 +160,10 @@ pub struct MMIODevManagerConstructorArgs<'a> {
     pub vm_resources: &'a mut VmResources,
     pub instance_id: &'a str,
     pub blk_worker_filter: Option<Arc<BpfProgram>>,
+    /// drive_id → new backing-file path. Forwarded into every
+    /// BlockConstructorArgs the device manager builds. See
+    /// `BlockConstructorArgs::block_path_overrides` for the contract.
+    pub block_path_overrides: HashMap<String, String>,
 }
 
 pub struct MMIOPlatformDevicesConstructorArgs<'a> {
@@ -517,7 +522,10 @@ impl<'a> Persist<'a> for MMIOVirtioDevices {
 
         for block_state in &state.block_devices {
             let device = Arc::new(Mutex::new(Block::restore(
-                BlockConstructorArgs { mem: mem.clone() },
+                BlockConstructorArgs {
+                    mem: mem.clone(),
+                    block_path_overrides: constructor_args.block_path_overrides.clone(),
+                },
                 &block_state.device_state,
             )?));
 
@@ -965,6 +973,7 @@ mod tests {
             event_manager: &mut event_manager,
             vm_resources,
             instance_id: "microvm-id",
+            block_path_overrides: Default::default(),
             blk_worker_filter: None,
         };
         let _restored_dev_manager = MMIOVirtioDevices::restore(restore_args, mmio_state).unwrap();

@@ -1352,6 +1352,7 @@ mod tests {
                 network_overrides: vec![],
                 vsock_override: None,
                 clock_realtime: false,
+                block_path_overrides: Default::default(),
                 huge_pages: SnapshotLoadHugePageConfig::Snapshot,
             },
         )));

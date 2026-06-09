@@ -122,6 +122,13 @@ pub struct LoadSnapshotParams {
     /// advancing kvmclock by the wall-clock time elapsed since the snapshot was taken. When false
     /// (default), kvmclock resumes from where it was at snapshot time.
     pub clock_realtime: bool,
+    /// drive_id → host path. When set for a given block drive, the
+    /// listed path is opened at restore instead of the one serialized
+    /// in vmstate. Lets callers relocate a backing file without
+    /// rewriting the binary snapshot — primary use case: snapshot
+    /// clones (fork) where the new VM's overlay file lives under a
+    /// different directory than the source's.
+    pub block_path_overrides: std::collections::HashMap<String, String>,
     /// Selects the huge-page configuration to use for the restored microVM.
     pub huge_pages: SnapshotLoadHugePageConfig,
 }
@@ -159,6 +166,10 @@ pub struct LoadSnapshotConfig {
     /// [x86_64 only] When set to true, passes `KVM_CLOCK_REALTIME` to `KVM_SET_CLOCK` on restore.
     #[serde(default)]
     pub clock_realtime: bool,
+    /// drive_id → host path. Optional path override map applied at
+    /// restore — see `LoadSnapshotParams::block_path_overrides`.
+    #[serde(default)]
+    pub block_path_overrides: std::collections::HashMap<String, String>,
     /// Selects the huge-page configuration to use for the restored microVM.
     #[serde(default)]
     pub huge_pages: SnapshotLoadHugePageConfig,

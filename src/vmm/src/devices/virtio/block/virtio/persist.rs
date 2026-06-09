@@ -118,6 +118,20 @@ impl Persist<'_> for VirtioBlock {
         let is_read_only = state.virtio_state.avail_features & (1u64 << VIRTIO_BLK_F_RO) != 0;
         let rate_limiter = RateLimiter::restore((), &state.rate_limiter_state)
             .map_err(VirtioBlockError::RateLimiter)?;
+
+        // Honour a load-time path override for this drive id, if the
+        // caller supplied one via `PUT /snapshot/load { block_path_overrides }`.
+        // The snapshot's serialized `disk_path` is the fallback — that's
+        // the unchanged pre-override behaviour. Useful when the
+        // snapshot was taken at path A but the live backing file on
+        // this host lives at path B (fork resume, cross-host
+        // migration, etc.).
+        let disk_path = constructor_args
+            .block_path_overrides
+            .get(&state.id)
+            .cloned()
+            .unwrap_or_else(|| state.disk_path.clone());
+
         let rate_limiter_config: RateLimiterConfig = (&rate_limiter).into();
         let num_queues = state
             .num_queues
@@ -134,7 +148,7 @@ impl Persist<'_> for VirtioBlock {
             is_read_only,
             discard: state.virtio_state.avail_features & (1u64 << VIRTIO_BLK_F_DISCARD) != 0,
             num_queues: state.num_queues,
-            path_on_host: state.disk_path.clone(),
+            path_on_host: disk_path.clone(),
             rate_limiter: rate_limiter_config.into_option(),
             file_engine_type: state.file_engine_type.into(),
             blk_size: Some(state.blk_size),
@@ -156,11 +170,7 @@ impl Persist<'_> for VirtioBlock {
                 queue,
                 queue_evt: EventFd::new(libc::EFD_NONBLOCK).map_err(VirtioBlockError::EventFd)?,
                 queue_idx,
-                disk: DiskProperties::new(
-                    &state.disk_path,
-                    is_read_only,
-                    state.file_engine_type.into(),
-                )?,
+                disk: DiskProperties::new(&disk_path, is_read_only, state.file_engine_type.into())?,
                 is_io_engine_throttled: false,
             });
         }
@@ -276,8 +286,14 @@ mod tests {
 
         // Restore the block device.
         let restored_state = bitcode::deserialize(&serialized_data).unwrap();
-        let restored_block =
-            VirtioBlock::restore(BlockConstructorArgs { mem: guest_mem }, &restored_state).unwrap();
+        let restored_block = VirtioBlock::restore(
+            BlockConstructorArgs {
+                mem: guest_mem,
+                block_path_overrides: Default::default(),
+            },
+            &restored_state,
+        )
+        .unwrap();
 
         // Test that virtio specific fields are the same.
         assert_eq!(restored_block.device_type(), VirtioDeviceType::Block);
@@ -295,6 +311,44 @@ mod tests {
             restored_block.config().path_on_host,
             block.config().path_on_host
         );
+    }
+
+    // A relocated snapshot must open the override for every queue, even when
+    // its original backing file no longer exists on the destination host.
+    #[test]
+    fn test_restore_block_path_override_all_queues() {
+        for engine in [FileEngineType::Sync, FileEngineType::Async] {
+            for num_queues in [1, 2] {
+                let original = TempFile::new().unwrap();
+                original.as_file().set_len(0x1000).unwrap();
+                let mut config =
+                    default_config(original.as_path().to_str().unwrap().to_owned(), engine);
+                config.num_queues = NonZeroU16::new(num_queues);
+                let block = VirtioBlock::new(config).unwrap();
+                let state = block.save();
+                drop(block);
+                drop(original);
+
+                let replacement = TempFile::new().unwrap();
+                replacement.as_file().set_len(0x2000).unwrap();
+                let path = replacement.as_path().to_str().unwrap().to_owned();
+                let restored = VirtioBlock::restore(
+                    BlockConstructorArgs {
+                        mem: default_mem(),
+                        block_path_overrides: [(state.id.clone(), path.clone())].into(),
+                    },
+                    &state,
+                )
+                .unwrap();
+                assert_eq!(restored.config().path_on_host, path);
+                assert_eq!(restored.resources().len(), usize::from(num_queues));
+                for resource in restored.resources() {
+                    assert_eq!(resource.disk.nsectors, 0x2000 >> 9);
+                }
+                // Subsequent snapshots retain the actual restored path.
+                assert_eq!(restored.save().disk_path, path);
+            }
+        }
     }
 
     #[test]
@@ -317,8 +371,14 @@ mod tests {
             let state = block.save();
             let serialized = bitcode::serialize(&state).unwrap();
             let restored_state = bitcode::deserialize(&serialized).unwrap();
-            let restored =
-                VirtioBlock::restore(BlockConstructorArgs { mem }, &restored_state).unwrap();
+            let restored = VirtioBlock::restore(
+                BlockConstructorArgs {
+                    mem,
+                    block_path_overrides: Default::default(),
+                },
+                &restored_state,
+            )
+            .unwrap();
 
             assert_eq!(state.num_queues, NonZeroU16::new(1));
             assert!(state.virtio_state.activated);
@@ -355,8 +415,14 @@ mod tests {
             let state = block.save();
             let serialized = bitcode::serialize(&state).unwrap();
             let restored_state = bitcode::deserialize(&serialized).unwrap();
-            let restored =
-                VirtioBlock::restore(BlockConstructorArgs { mem }, &restored_state).unwrap();
+            let restored = VirtioBlock::restore(
+                BlockConstructorArgs {
+                    mem,
+                    block_path_overrides: Default::default(),
+                },
+                &restored_state,
+            )
+            .unwrap();
 
             assert_eq!(state.virtio_state.queues.len(), 2);
             assert_eq!(restored.num_queues(), 2);

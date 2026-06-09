@@ -112,6 +112,7 @@ fn parse_put_snapshot_load(body: &Body) -> Result<ParsedRequest, RequestError> {
         network_overrides: snapshot_config.network_overrides,
         vsock_override: snapshot_config.vsock_override,
         clock_realtime: snapshot_config.clock_realtime,
+        block_path_overrides: snapshot_config.block_path_overrides,
         huge_pages: snapshot_config.huge_pages,
     };
 
@@ -214,6 +215,7 @@ mod tests {
             network_overrides: vec![],
             vsock_override: None,
             clock_realtime: false,
+            block_path_overrides: Default::default(),
             huge_pages: SnapshotLoadHugePageConfig::Hugetlbfs2M,
         };
         let mut parsed_request = parse_put_snapshot(&Body::new(body), Some("load")).unwrap();
@@ -247,6 +249,7 @@ mod tests {
             network_overrides: vec![],
             vsock_override: None,
             clock_realtime: false,
+            block_path_overrides: Default::default(),
             huge_pages: SnapshotLoadHugePageConfig::Snapshot,
         };
         let mut parsed_request = parse_put_snapshot(&Body::new(body), Some("load")).unwrap();
@@ -281,6 +284,7 @@ mod tests {
             network_overrides: vec![],
             vsock_override: None,
             clock_realtime: false,
+            block_path_overrides: Default::default(),
             huge_pages: SnapshotLoadHugePageConfig::Snapshot,
         };
         let mut parsed_request = parse_put_snapshot(&Body::new(body), Some("load")).unwrap();
@@ -323,6 +327,7 @@ mod tests {
             }],
             vsock_override: None,
             clock_realtime: false,
+            block_path_overrides: Default::default(),
             huge_pages: SnapshotLoadHugePageConfig::Snapshot,
         };
         let mut parsed_request = parse_put_snapshot(&Body::new(body), Some("load")).unwrap();
@@ -353,6 +358,7 @@ mod tests {
             network_overrides: vec![],
             vsock_override: None,
             clock_realtime: false,
+            block_path_overrides: Default::default(),
             huge_pages: SnapshotLoadHugePageConfig::Snapshot,
         };
         let parsed_request = parse_put_snapshot(&Body::new(body), Some("load")).unwrap();

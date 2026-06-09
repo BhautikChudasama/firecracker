@@ -388,6 +388,7 @@ fn verify_load_snapshot(
             network_overrides: vec![],
             vsock_override: None,
             clock_realtime: false,
+            block_path_overrides: Default::default(),
             huge_pages,
         }))
         .unwrap();
@@ -460,6 +461,7 @@ fn test_load_snapshot_rejects_hugetlbfs_with_file_backend() {
             network_overrides: vec![],
             vsock_override: None,
             clock_realtime: false,
+            block_path_overrides: Default::default(),
             huge_pages: SnapshotLoadHugePageConfig::Hugetlbfs2M,
         }))
         .unwrap_err();
@@ -533,6 +535,7 @@ fn verify_load_snap_disallowed_after_boot_resources(res: VmmAction, res_name: &s
         network_overrides: vec![],
         vsock_override: None,
         clock_realtime: false,
+        block_path_overrides: Default::default(),
         huge_pages: SnapshotLoadHugePageConfig::Snapshot,
     });
     let err = preboot_api_controller.handle_preboot_request(req);

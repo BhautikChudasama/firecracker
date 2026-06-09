@@ -392,6 +392,9 @@ pub struct PciDevicesConstructorArgs<'a> {
     pub vm_resources: &'a mut VmResources,
     pub instance_id: &'a str,
     pub event_manager: &'a mut EventManager,
+    /// drive_id → new backing-file path. Same contract as
+    /// MMIODevManagerConstructorArgs::block_path_overrides.
+    pub block_path_overrides: std::collections::HashMap<String, String>,
     pub blk_worker_filter: Option<Arc<BpfProgram>>,
 }
 
@@ -594,7 +597,10 @@ impl<'a> Persist<'a> for PciDevices {
 
         for block_state in &state.block_devices {
             let device = Arc::new(Mutex::new(Block::restore(
-                BlockConstructorArgs { mem: mem.clone() },
+                BlockConstructorArgs {
+                    mem: mem.clone(),
+                    block_path_overrides: constructor_args.block_path_overrides.clone(),
+                },
                 &block_state.device_state,
             )?));
 
@@ -922,6 +928,7 @@ mod tests {
             instance_id: "microvm-id",
             event_manager: &mut event_manager,
             blk_worker_filter: None,
+            block_path_overrides: Default::default(),
         };
         let _restored_dev_manager = PciDevices::restore(restore_args, pci_state).unwrap();
 
@@ -1105,6 +1112,7 @@ mod tests {
                 instance_id: "microvm-id",
                 event_manager: &mut event_manager,
                 blk_worker_filter: None,
+                block_path_overrides: Default::default(),
             },
             pci_state,
         )
