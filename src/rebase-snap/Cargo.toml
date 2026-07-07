@@ -1,6 +1,6 @@
 [package]
 name = "rebase-snap"
-version = "2026.6.4"
+version = "2026.7.7"
 authors = ["Amazon Firecracker team <firecracker-devel@amazon.com>"]
 edition = "2024"
 license = "Apache-2.0"
